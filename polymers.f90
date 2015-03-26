@@ -6,7 +6,7 @@ program polymers
 
 	implicit none
 
-	integer :: N, Ntheta, i, counter
+	integer :: N, Ntheta, i, counter, Ndim
 	real(8) :: Temperature, PolWeight, beta
 	real(8), dimension(:, :), allocatable :: Polymer
 
@@ -18,10 +18,10 @@ program polymers
 
 
 
-	call ReadInputFile(N, Ntheta, Temperature)
-	print *, "N=", N, "Ntheta=", Ntheta, "T=", Temperature
+	call ReadInputFile(N, Ndim, Ntheta, Temperature)
+	print *, "N=", N, "Dimension =", Ndim,  "Ntheta=", Ntheta, "T=", Temperature
 
-	allocate ( Polymer(N, 2) )
+	allocate ( Polymer(N, Ndim) )
 
 	Polymer = 0d0
 	Polymer(2,1) = 1d0
@@ -31,7 +31,7 @@ program polymers
 	PolWeight = 1d0
 	beta = 1d0/Temperature
 
-	call AddBead(Polymer, PolWeight, counter, Ntheta, N, beta)
+	call AddBead(Polymer, PolWeight, counter, Ntheta, N, Ndim,  beta)
 
 	do i =1,N
 
@@ -41,7 +41,11 @@ program polymers
 	open (unit=2,file="beads_positions.dat",action="write")
 	do i=1,N
 
-		write (2,"(4F18.10)")  Polymer(i,1), Polymer(i,2)
+		if (Ndim == 2) then
+			write (2,"(4F18.10)")  Polymer(i,1), Polymer(i,2)
+		else if (Ndim == 3) then
+			write (2,"(4F18.10)")  Polymer(i,1), Polymer(i,2), Polymer(i,3)
+		end if
 
 	end do 
 	

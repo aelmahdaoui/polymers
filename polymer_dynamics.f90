@@ -6,35 +6,47 @@ module polymer_dynamics
 
 contains
 
-	function CalcEnergy(Theta, Polymer, counter, N) result(energy)
+	function CalcEnergy(Theta, Phi, Polymer, counter, N, Ndim) result(energy)
 		implicit none
-		real(8), intent(in) :: Theta
-		integer, intent(in) :: counter, N
-		real(8), intent(in), dimension(N,2) :: Polymer
+		real(8), intent(in) :: Theta, Phi
+		integer, intent(in) :: counter, N, Ndim
+		real(8), intent(in), dimension(N,Ndim) :: Polymer
 		integer :: i
 		real(8), parameter :: e= 125d-3, s = 64d-2
-		real(8), dimension(2) :: NewSegment
+		real(8), dimension(Ndim) :: NewSegment
 		real(8) :: energy, distance_squared
 
-		NewSegment(1) = cos(Theta) + Polymer(counter-1,1)
-		NewSegment(2) = sin(Theta) + Polymer(counter-1,2)
+		if (Ndim == 2) then
+			NewSegment(1) = cos(Theta) + Polymer(counter-1,1)
+			NewSegment(2) = sin(Theta) + Polymer(counter-1,2)
+		else if (Ndim == 3) then
+			NewSegment(1) = cos(Theta) * sin(Phi) + Polymer(counter-1,1)
+			NewSegment(2) = sin(Theta) * sin(Phi) + Polymer(counter-1,2)
+			NewSegment(3) = cos(Phi) + Polymer(counter-1,3)
+		end if 
 		energy = 0d0
 		
+		distance_squared = 0d0
+		
 		do i=1,(counter-1)
-				distance_squared = (NewSegment(1) - Polymer(i,1))**2 + (NewSegment(2) - Polymer(i,2))**2
+				if (Ndim == 2) then
+					distance_squared = (NewSegment(1) - Polymer(i,1))**2 + (NewSegment(2) - Polymer(i,2))**2
+				else if (Ndim == 3) then
+					distance_squared = (NewSegment(1) - Polymer(i,1))**2 + (NewSegment(2) - Polymer(i,2))**2 + (NewSegment(3) - Polymer(i,3))**2
+				end if 
 				energy = energy + 4*e*((s/distance_squared)**6-(s/distance_squared)**3)
 		end do
 
 	end function CalcEnergy
 	
 
-	subroutine AddBead(Polymer, PolWeight, counter, Ntheta, N, beta)
-		integer, intent(in) :: counter, N, Ntheta
+	subroutine AddBead(Polymer, PolWeight, counter, Ntheta, N, Ndim, beta)
+		integer, intent(in) :: counter, N, Ndim, Ntheta
 		integer :: THETA_NUMBER
 		real(8), intent(inout) :: PolWeight
 		real(8), intent(inout), dimension(N,2) :: Polymer
-		real(8), dimension(Ntheta) :: weight_vector
-		real(8) :: weight, theta, beta, RandomTheta
+		real(8), dimension(Ntheta**(Ndim-1)) :: weight_vector
+		real(8) :: weight, theta, phi, beta, RandomTheta, RandomPhi
 		real(8), parameter :: pi = 4*atan(1d0)
 
 		
@@ -42,51 +54,79 @@ contains
 		weight_vector = 0d0 ! Check if necessary		
 		weight = 0d0 ! Check if necessary
 
-		call CalcWeight(Polymer, N, Ntheta, counter, beta, weight_vector, weight, RandomTheta)
-		THETA_NUMBER = PickThetaNumber(Ntheta, weight_vector, weight)
-		theta =  (THETA_NUMBER * 2 * pi) / Ntheta + RandomTheta
+		call CalcWeight(Polymer, N, Ndim , Ntheta, counter, beta, weight_vector, weight, RandomTheta, RandomPhi)
+		!print *, weight_vector
+		THETA_NUMBER = PickThetaNumber(Ndim, Ntheta, weight_vector, weight)
+		if (Ndim == 2) then
+			theta =  (THETA_NUMBER * 2 * pi) / Ntheta + RandomTheta
+		else if (Ndim == 3) then
+			theta =  (mod(THETA_NUMBER, Ntheta) * 2 * pi) / Ntheta + RandomTheta	
+			phi = 	((THETA_NUMBER - mod(THETA_NUMBER, Ntheta))/Ntheta  * pi) / Ntheta + RandomPhi
+		end if
+
 		weight = weight_vector(THETA_NUMBER)
-		call UpdatePolymer(Polymer, N, counter, theta)
+
+		call UpdatePolymer(Polymer, N, Ndim, counter, theta, phi)
 
 		PolWeight = PolWeight * weight
 
 		if (counter < N) then
-			call AddBead(Polymer, PolWeight, (counter + 1), Ntheta, N, beta)
+			call AddBead(Polymer, PolWeight, (counter + 1), Ntheta, N, Ndim, beta)
 		end if
 
 	end subroutine
 
-	subroutine CalcWeight(Polymer, N, Ntheta, counter, beta, weight_vector, sum_weight_vector, RandomTheta)
+	subroutine CalcWeight(Polymer, N, Ndim, Ntheta, counter, beta, weight_vector, sum_weight_vector, RandomTheta, RandomPhi)
 		real(8), parameter :: pi = 4*atan(1d0)
-		real(8) :: xs, Theta
-		integer :: i
-		integer, intent(in) :: N, Ntheta, counter
+		real(8) :: xs, ys, Theta, Phi
+		integer :: i, j
+		integer, intent(in) :: N, Ndim, Ntheta, counter
 		real(8), intent(in) :: beta
 		real(8), intent(in), dimension(N,2) :: Polymer
-		real(8), dimension(Ntheta) :: energy_vector
-		real(8), intent(inout), dimension(Ntheta) :: weight_vector
+		real(8), dimension(Ntheta**(Ndim -1)) :: energy_vector
+		real(8), intent(inout), dimension(Ntheta**(Ndim-1)) :: weight_vector
 		real(8), intent(inout) :: sum_weight_vector	
-		real(8), intent(out) :: RandomTheta
+		real(8), intent(out) :: RandomTheta, RandomPhi
 
 		CALL RANDOM_NUMBER(xs)
+		CALL RANDOM_NUMBER(ys)
 		print *, "Random number", xs
 		sum_weight_vector = 0d0
+		weight_vector = 0d0
 
 		RandomTheta = xs * 2 * pi
-		do i = 1,Ntheta
-			Theta = RandomTheta + i * 2 * pi/Ntheta
-			energy_vector(i) = CalcEnergy(Theta, Polymer, counter, N)
-			weight_vector(i) = exp(-1 * energy_vector(i) * beta)
-			sum_weight_vector = sum_weight_vector + weight_vector(i)
-		end do
+		RandomPhi = ys * 2 * pi
+
+		if (Ndim == 2) then
+			do i = 1,Ntheta
+				Theta = RandomTheta + i * 2 * pi/Ntheta
+				energy_vector(i) = CalcEnergy(Theta, Phi, Polymer, counter, N, Ndim)
+				weight_vector(i) = exp(-1 * energy_vector(i) * beta)
+				sum_weight_vector = sum_weight_vector + weight_vector(i)
+				!print *, "some"
+			end do
+		else if (Ndim == 3) then 
+			do j = 1,Ntheta
+				Phi = RandomPhi + j * pi/Ntheta
+				do i = 1, Ntheta	
+					Theta = RandomTheta + i * 2 * pi/Ntheta
+					energy_vector(i+(j-1)*Ntheta) = CalcEnergy(Theta, Phi, Polymer, counter, N, Ndim)
+					weight_vector(i+(j-1)*Ntheta) = exp(-1 * energy_vector(i+(j-1)*Ntheta) * beta)
+					sum_weight_vector = sum_weight_vector + weight_vector(i+(j-1)*Ntheta)
+					!print *, "Total weight is:", sum_weight_vector, "weight is ", weight_vector(i+(j-1)*Ntheta)
+				end do
+			end do
+		end if 
+		
+		!print *, "Dimension = ", Ndim, " Total weight = ", sum_weight_vector
 		
 	end subroutine
 
 
-	function PickThetaNumber(Ntheta, weight_vector, total_weight) result(THETA_NUMBER)
+	function PickThetaNumber(Ndim, Ntheta, weight_vector, total_weight) result(THETA_NUMBER)
 		implicit none 
-		integer, intent(in) :: Ntheta
-		real(8), intent(in), dimension(Ntheta) :: weight_vector
+		integer, intent(in) :: Ntheta, Ndim
+		real(8), intent(in), dimension(Ntheta**(Ndim-1)) :: weight_vector
 		real(8), intent(in) :: total_weight
 		real(8) :: weight, xs
 		integer :: THETA_NUMBER, i
@@ -96,24 +136,30 @@ contains
 		CALL RANDOM_NUMBER(xs)
 		print *, "Random number for picking an angle", xs
 		weight = 0d0
-		do i=1,Ntheta
+		do i=1,Ntheta**(Ndim-1)
+			!print *, "Weight vector for ", i , " is : " , weight_vector(i)
 			weight = weight + weight_vector(i) / total_weight
 			if (weight < xs) then
 				THETA_NUMBER = THETA_NUMBER + 1
+				!print *, "Theta number = ", THETA_NUMBER
 			end if
 		end do
 
 	end function PickThetaNumber
 
-	subroutine UpdatePolymer(Polymer, N, counter, theta)
-		integer, intent(in) :: N, counter
-		real(8), intent(inout), dimension(N,2) :: Polymer
-		real(8), intent(in) :: theta
+	subroutine UpdatePolymer(Polymer, N, Ndim, counter, theta, phi)
+		integer, intent(in) :: N, Ndim, counter
+		real(8), intent(inout), dimension(N,Ndim) :: Polymer
+		real(8), intent(in) :: theta, phi
 
-
-		Polymer(counter, 1) = cos(theta) + Polymer(counter-1, 1)
-		Polymer(counter, 2) = sin(theta) + Polymer(counter-1, 2)
-		
+		if (Ndim == 2) then
+			Polymer(counter, 1) = cos(theta) + Polymer(counter-1, 1)
+			Polymer(counter, 2) = sin(theta) + Polymer(counter-1, 2)
+		else if (Ndim == 3) then 
+			Polymer(counter, 1) = cos(theta) * sin(phi) + Polymer(counter-1,1)
+			Polymer(counter, 2) = sin(theta) * sin(phi) + Polymer(counter-1,2)
+			Polymer(counter, 3) = cos(phi) + Polymer(counter-1,3)
+		end if
 		
 	end subroutine
 
