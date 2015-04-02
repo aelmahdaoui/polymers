@@ -2,10 +2,144 @@ module polymer_dynamics
 	implicit none
 	private
 	
-	public init_random_seed, AddBead, CalcEnergy, UpdatePolymer, CalcWeight, PickThetaNumber
+	public AddBead, init_random_seed
 
 contains
 
+	subroutine AddBead(Polymer, PolWeight, AvWeight, PolWeight3, counter, Ntheta, N, Ndim, beta, AverageDistance, RadiusGyration, &
+		PolWeight_vector)
+		integer, intent(in) :: counter, N, Ndim, Ntheta
+		integer :: THETA_NUMBER, PERM
+		real(8), intent(inout) :: PolWeight, AvWeight, PolWeight3
+		real(8) :: NewWeight
+		real(8), intent(inout), dimension(N,Ndim) :: Polymer
+		real(8), dimension(Ntheta**(Ndim-1)) :: weight_vector
+		real(8) :: weight, theta, phi, beta, RandomTheta, RandomPhi, R, LowLim, UpLim
+		real(8), parameter :: pi = 4*atan(1d0), highalpha = 2d0, lowalpha = 1.2
+		real(8), intent(inout), dimension(N,3) :: AverageDistance
+		real(8), intent(inout), dimension(N,2) :: RadiusGyration
+		real(8), intent(inout), dimension(1,(N-2)) :: PolWeight_vector
+
+		
+		
+		weight_vector = 0d0 		
+		weight = 0d0 
+		theta = 0d0
+		phi = 0d0
+
+
+		call CalcWeight(Polymer, N, Ndim , Ntheta, counter, beta, weight_vector, weight, RandomTheta, RandomPhi) 			! Calculate the weights
+		THETA_NUMBER = PickThetaNumber(Ndim, Ntheta, weight_vector, weight)								! Pick a random number based on the calculated weights
+		
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!	Assign angles for the new bead		!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+		if (Ndim == 2) then
+			theta =  (THETA_NUMBER * 2 * pi) / Ntheta + RandomTheta
+		else if (Ndim == 3) then
+			theta =  (mod(THETA_NUMBER, Ntheta) * 2 * pi) / Ntheta + RandomTheta	
+			phi = 	((THETA_NUMBER - mod(THETA_NUMBER, Ntheta))/Ntheta  * pi) / Ntheta + RandomPhi
+		end if
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!	Assign angles for the new bead		!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+
+
+		call UpdatePolymer(Polymer, N, Ndim, counter, theta, phi)
+
+		
+		PolWeight = PolWeight * weight
+		if (counter == 3) then
+			!print *, Polweight, weight
+		end if
+
+		
+		if (Ndim == 2) then
+			AverageDistance(counter,1) = AverageDistance(counter,1) + (Polymer(counter,1)**2 + Polymer(counter,2)**2) * PolWeight			! Record weighted end-to-end distance
+			AverageDistance(counter,2) = AverageDistance(counter,2) + PolWeight									! Record the weights for normalization
+			PolWeight_vector(1,(counter-2)) = PolWeight
+			!print *, PolWeight_vector(1,(counter-2)), counter
+			AverageDistance(counter,3) = AverageDistance(counter,3) + 1										! Record number of polymers with this length
+		else if (Ndim == 3) then
+			AverageDistance(counter,1) = AverageDistance(counter,1) + (Polymer(counter,1)**2 &
+			+ Polymer(counter,2)**2 + Polymer(counter,3)**2) * PolWeight/100d0									! Record weighted end-to-end distance
+			AverageDistance(counter,2) = AverageDistance(counter,2) + PolWeight/100d0								! Record the weights for normalization
+			AverageDistance(counter,3) = AverageDistance(counter,3) + 1										! Record number of polymers with this length
+		end if
+
+		RadiusGyration(counter,1) = RadiusGyration(counter,1) + CalcRadiusGyration(Polymer,counter,Ndim) * PolWeight
+		RadiusGyration(counter,2) = RadiusGyration(counter,2) + PolWeight
+
+
+!if (counter == N) then
+!	print *, PolWeight_vector
+!end if
+
+
+PERM = 1
+
+if (PERM == 1) then
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!	Pruning & enriching the polymer		!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+		if (counter == 3) then
+			AvWeight = PolWeight
+			PolWeight3 = PolWeight
+			call AddBead(Polymer, PolWeight, AVWeight, PolWeight3, (counter + 1), Ntheta, N, Ndim, beta, AverageDistance, RadiusGyration, &
+			PolWeight_vector)
+		else if (counter < N) then
+			AvWeight = (AvWeight * (counter - 1) + PolWeight)/counter
+			UpLim = highalpha * AvWeight/PolWeight3
+			LowLim = lowalpha * AvWeight/PolWeight3
+			if (PolWeight > UpLim) then
+				NewWeight = 0.5 * PolWeight
+				call AddBead(Polymer, NewWeight, AvWeight, PolWeight3, (counter + 1), Ntheta, N, Ndim, beta, AverageDistance, RadiusGyration, &
+				PolWeight_vector)
+				call AddBead(Polymer, NewWeight, AvWeight, PolWeight3, (counter + 1), Ntheta, N, Ndim, beta, AverageDistance, RadiusGyration, &
+				PolWeight_vector)
+				!print *, "Polymer doubled", counter
+			else if (PolWeight < LowLim) then
+				CALL RANDOM_NUMBER(R)
+				if (R < 0.5) then
+					NewWeight = 2*PolWeight
+					call AddBead(Polymer, NewWeight, AvWeight, PolWeight3, (counter + 1), Ntheta, N, Ndim, beta, AverageDistance, RadiusGyration, &
+					PolWeight_vector)
+					!print *, "Polymer accepted", counter
+				else
+					!print *, "Polymer rejected", counter
+				end if
+			else
+				call AddBead(Polymer, PolWeight, AvWeight, PolWeight3, (counter + 1), Ntheta, N, Ndim, beta, AverageDistance, RadiusGyration, &
+				PolWeight_vector)
+			end if
+		end if
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!	Pruning & enriching the polymer		!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+
+else if (PERM == 0) then
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!	No Pruning & enriching the Polymer	!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+		if (counter < N) then
+			call AddBead(Polymer, PolWeight, AvWeight, PolWeight3, (counter + 1), Ntheta, N, Ndim, beta, AverageDistance, RadiusGyration, &
+			PolWeight_vector)
+		end if
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!	No Pruning & enriching the Polymer	!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+end if
+	end subroutine
+
+
+
+
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!	Calculating the energy for adding a new segment to a polymer	!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	function CalcEnergy(Theta, Phi, Polymer, counter, N, Ndim) result(energy)
 		implicit none
 		real(8), intent(in) :: Theta, Phi
@@ -16,6 +150,9 @@ contains
 		real(8), dimension(Ndim) :: NewSegment
 		real(8) :: energy, distance_squared
 
+		energy = 0d0
+		distance_squared = 0d0
+
 		if (Ndim == 2) then
 			NewSegment(1) = cos(Theta) + Polymer(counter-1,1)
 			NewSegment(2) = sin(Theta) + Polymer(counter-1,2)
@@ -24,9 +161,7 @@ contains
 			NewSegment(2) = sin(Theta) * sin(Phi) + Polymer(counter-1,2)
 			NewSegment(3) = cos(Phi) + Polymer(counter-1,3)
 		end if 
-		energy = 0d0
-		
-		distance_squared = 0d0
+
 		
 		do i=1,(counter-1)
 				if (Ndim == 2) then
@@ -38,44 +173,16 @@ contains
 		end do
 
 	end function CalcEnergy
-	
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!	Calculating the energy for adding a new segment to a polymer	!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-	subroutine AddBead(Polymer, PolWeight, counter, Ntheta, N, Ndim, beta)
-		integer, intent(in) :: counter, N, Ndim, Ntheta
-		integer :: THETA_NUMBER
-		real(8), intent(inout) :: PolWeight
-		real(8), intent(inout), dimension(N,2) :: Polymer
-		real(8), dimension(Ntheta**(Ndim-1)) :: weight_vector
-		real(8) :: weight, theta, phi, beta, RandomTheta, RandomPhi
-		real(8), parameter :: pi = 4*atan(1d0)
 
-		
-		
-		weight_vector = 0d0 ! Check if necessary		
-		weight = 0d0 ! Check if necessary
 
-		call CalcWeight(Polymer, N, Ndim , Ntheta, counter, beta, weight_vector, weight, RandomTheta, RandomPhi)
-		!print *, weight_vector
-		THETA_NUMBER = PickThetaNumber(Ndim, Ntheta, weight_vector, weight)
-		if (Ndim == 2) then
-			theta =  (THETA_NUMBER * 2 * pi) / Ntheta + RandomTheta
-		else if (Ndim == 3) then
-			theta =  (mod(THETA_NUMBER, Ntheta) * 2 * pi) / Ntheta + RandomTheta	
-			phi = 	((THETA_NUMBER - mod(THETA_NUMBER, Ntheta))/Ntheta  * pi) / Ntheta + RandomPhi
-		end if
 
-		weight = weight_vector(THETA_NUMBER)
-
-		call UpdatePolymer(Polymer, N, Ndim, counter, theta, phi)
-
-		PolWeight = PolWeight * weight
-
-		if (counter < N) then
-			call AddBead(Polymer, PolWeight, (counter + 1), Ntheta, N, Ndim, beta)
-		end if
-
-	end subroutine
-
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!! Calculating the Boltzmann factors for adding a new segment in different directions of a polymer !
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	subroutine CalcWeight(Polymer, N, Ndim, Ntheta, counter, beta, weight_vector, sum_weight_vector, RandomTheta, RandomPhi)
 		real(8), parameter :: pi = 4*atan(1d0)
 		real(8) :: xs, ys, Theta, Phi
@@ -90,7 +197,6 @@ contains
 
 		CALL RANDOM_NUMBER(xs)
 		CALL RANDOM_NUMBER(ys)
-		print *, "Random number", xs
 		sum_weight_vector = 0d0
 		weight_vector = 0d0
 
@@ -103,7 +209,6 @@ contains
 				energy_vector(i) = CalcEnergy(Theta, Phi, Polymer, counter, N, Ndim)
 				weight_vector(i) = exp(-1 * energy_vector(i) * beta)
 				sum_weight_vector = sum_weight_vector + weight_vector(i)
-				!print *, "some"
 			end do
 		else if (Ndim == 3) then 
 			do j = 1,Ntheta
@@ -113,14 +218,15 @@ contains
 					energy_vector(i+(j-1)*Ntheta) = CalcEnergy(Theta, Phi, Polymer, counter, N, Ndim)
 					weight_vector(i+(j-1)*Ntheta) = exp(-1 * energy_vector(i+(j-1)*Ntheta) * beta)
 					sum_weight_vector = sum_weight_vector + weight_vector(i+(j-1)*Ntheta)
-					!print *, "Total weight is:", sum_weight_vector, "weight is ", weight_vector(i+(j-1)*Ntheta)
 				end do
 			end do
 		end if 
 		
-		!print *, "Dimension = ", Ndim, " Total weight = ", sum_weight_vector
-		
 	end subroutine
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!! Calculating the Boltzmann factors for adding a new segment in different directions of a polymer !
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
 
 
 	function PickThetaNumber(Ndim, Ntheta, weight_vector, total_weight) result(THETA_NUMBER)
@@ -134,18 +240,17 @@ contains
 		THETA_NUMBER = 1
 		
 		CALL RANDOM_NUMBER(xs)
-		print *, "Random number for picking an angle", xs
 		weight = 0d0
 		do i=1,Ntheta**(Ndim-1)
-			!print *, "Weight vector for ", i , " is : " , weight_vector(i)
 			weight = weight + weight_vector(i) / total_weight
 			if (weight < xs) then
 				THETA_NUMBER = THETA_NUMBER + 1
-				!print *, "Theta number = ", THETA_NUMBER
 			end if
 		end do
 
 	end function PickThetaNumber
+
+
 
 	subroutine UpdatePolymer(Polymer, N, Ndim, counter, theta, phi)
 		integer, intent(in) :: N, Ndim, counter
@@ -163,9 +268,54 @@ contains
 		
 	end subroutine
 
+	function CalcRadiusGyration(Polymer,N,Ndim) result(radius)
+		integer, intent(in) :: N, Ndim
+		integer :: i
+		real(8) :: DistanceSquared, CentreOfMass, radius
+		real(8), intent(in), dimension(N,Ndim) :: Polymer
+		
+		radius = 0d0
+
+		CentreOfMass = sqrt(CalcCentreOfMassSquared(Polymer,N,Ndim))
+
+		do i=1,N
+			DistanceSquared = Polymer(i,1)**2 + Polymer(i,2)**2
+			if (Ndim == 3) then
+				DistanceSquared = DistanceSquared + Polymer(i,3)**2
+			end if				
+			radius = radius + (sqrt(DistanceSquared) - CentreOfMass)**2
+		end do
+		
+		radius = radius/N
+		!radius = sqrt(radius)
+		
+		
+	end function
+
+	function CalcCentreOfMassSquared (Polymer,N,Ndim) result(TotalDistanceSquared)
+		integer, intent(in) :: N, Ndim
+		integer :: i
+		real(8) :: TotalDistanceSquared
+		real(8), intent(in), dimension(N,Ndim) :: Polymer
+
+		TotalDistanceSquared = 0d0
+		
+		do i=1,N
+			TotalDistanceSquared = TotalDistanceSquared + Polymer(i,1)**2 + Polymer(i,2)**2
+			if (Ndim == 3) then
+				TotalDistanceSquared = TotalDistanceSquared + Polymer(i,3)**2
+			end if
+		end do
+
+		TotalDistanceSquared = TotalDistanceSquared/N
+
+	end function
 
 
-	! copied from ICCP coding-notes
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!			Generating random numbers			!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!			Copied from ICCP coding-notes			!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	subroutine init_random_seed()
 		implicit none
 		integer, allocatable :: seed(:)
@@ -210,5 +360,8 @@ contains
 		end if
 		call random_seed(put=seed)
 	end subroutine init_random_seed
-
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!			Generating random numbers			!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!			Copied from ICCP coding-notes			!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 end module 
