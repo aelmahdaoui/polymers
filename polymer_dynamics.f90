@@ -6,19 +6,22 @@ module polymer_dynamics
 
 contains
 
-	subroutine AddBead(Polymer, PolWeight, AvWeight, PolWeight3, counter, Ntheta, N, Ndim, beta, AverageDistance, RadiusGyration, &
+	subroutine AddBead(Polymer, PolWeight, counter, Ntheta, N, Ndim, beta, AverageDistance, RadiusGyration, &
 		PolWeight_vector)
 		integer, intent(in) :: counter, N, Ndim, Ntheta
 		integer :: THETA_NUMBER, PERM
-		real(8), intent(inout) :: PolWeight, AvWeight, PolWeight3
+		real(8), intent(inout) :: PolWeight
 		real(8) :: NewWeight
 		real(8), intent(inout), dimension(N,Ndim) :: Polymer
 		real(8), dimension(Ntheta**(Ndim-1)) :: weight_vector
 		real(8) :: weight, theta, phi, beta, RandomTheta, RandomPhi, R, LowLim, UpLim
-		real(8), parameter :: pi = 4*atan(1d0), highalpha = 2d0, lowalpha = 1.2
+		real(8), parameter :: pi = 4*atan(1d0), highalpha = 2.0, lowalpha = 1.2
 		real(8), intent(inout), dimension(N,3) :: AverageDistance
 		real(8), intent(inout), dimension(N,2) :: RadiusGyration
-		real(8), intent(inout), dimension(1,(N-2)) :: PolWeight_vector
+		real(8), intent(inout), dimension(2,(N-2)) :: PolWeight_vector
+
+
+
 
 		
 		
@@ -49,71 +52,77 @@ contains
 		call UpdatePolymer(Polymer, N, Ndim, counter, theta, phi)
 
 		
-		PolWeight = PolWeight * weight
-		if (counter == 3) then
-			!print *, Polweight, weight
-		end if
+
+		PolWeight = PolWeight*weight/(0.75*Ntheta)
 
 		
 		if (Ndim == 2) then
 			AverageDistance(counter,1) = AverageDistance(counter,1) + (Polymer(counter,1)**2 + Polymer(counter,2)**2) * PolWeight			! Record weighted end-to-end distance
 			AverageDistance(counter,2) = AverageDistance(counter,2) + PolWeight									! Record the weights for normalization
 			PolWeight_vector(1,(counter-2)) = PolWeight
-			!print *, PolWeight_vector(1,(counter-2)), counter
+			PolWeight_vector(2,(counter-2)) = weight
 			AverageDistance(counter,3) = AverageDistance(counter,3) + 1										! Record number of polymers with this length
 		else if (Ndim == 3) then
 			AverageDistance(counter,1) = AverageDistance(counter,1) + (Polymer(counter,1)**2 &
-			+ Polymer(counter,2)**2 + Polymer(counter,3)**2) * PolWeight/100d0									! Record weighted end-to-end distance
-			AverageDistance(counter,2) = AverageDistance(counter,2) + PolWeight/100d0								! Record the weights for normalization
+			+ Polymer(counter,2)**2 + Polymer(counter,3)**2) * PolWeight									! Record weighted end-to-end distance
+			AverageDistance(counter,2) = AverageDistance(counter,2) + PolWeight								! Record the weights for normalization
 			AverageDistance(counter,3) = AverageDistance(counter,3) + 1										! Record number of polymers with this length
 		end if
 
-		RadiusGyration(counter,1) = RadiusGyration(counter,1) + CalcRadiusGyration(Polymer,counter,Ndim) * PolWeight
-		RadiusGyration(counter,2) = RadiusGyration(counter,2) + PolWeight
+		!RadiusGyration(counter,1) = RadiusGyration(counter,1) + CalcRadiusGyration(Polymer,counter,Ndim) * PolWeight
+		!RadiusGyration(counter,2) = RadiusGyration(counter,2) + PolWeight
 
 
-!if (counter == N) then
-!	print *, PolWeight_vector
-!end if
 
 
 PERM = 1
+
 
 if (PERM == 1) then
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!	Pruning & enriching the polymer		!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+		
+
 		if (counter == 3) then
-			AvWeight = PolWeight
-			PolWeight3 = PolWeight
-			call AddBead(Polymer, PolWeight, AVWeight, PolWeight3, (counter + 1), Ntheta, N, Ndim, beta, AverageDistance, RadiusGyration, &
+			call AddBead(Polymer, PolWeight, (counter + 1), Ntheta, N, Ndim, beta, AverageDistance, RadiusGyration, &
 			PolWeight_vector)
 		else if (counter < N) then
-			AvWeight = (AvWeight * (counter - 1) + PolWeight)/counter
-			UpLim = highalpha * AvWeight/PolWeight3
-			LowLim = lowalpha * AvWeight/PolWeight3
-			if (PolWeight > UpLim) then
-				NewWeight = 0.5 * PolWeight
-				call AddBead(Polymer, NewWeight, AvWeight, PolWeight3, (counter + 1), Ntheta, N, Ndim, beta, AverageDistance, RadiusGyration, &
-				PolWeight_vector)
-				call AddBead(Polymer, NewWeight, AvWeight, PolWeight3, (counter + 1), Ntheta, N, Ndim, beta, AverageDistance, RadiusGyration, &
-				PolWeight_vector)
-				!print *, "Polymer doubled", counter
-			else if (PolWeight < LowLim) then
-				CALL RANDOM_NUMBER(R)
-				if (R < 0.5) then
-					NewWeight = 2*PolWeight
-					call AddBead(Polymer, NewWeight, AvWeight, PolWeight3, (counter + 1), Ntheta, N, Ndim, beta, AverageDistance, RadiusGyration, &
+			if (PolWeight > 0 ) then
+				if ( AverageDistance(counter,3) < 50) then
+					call AddBead(Polymer, PolWeight, (counter + 1), Ntheta, N, Ndim, beta, AverageDistance, RadiusGyration, &
 					PolWeight_vector)
-					!print *, "Polymer accepted", counter
 				else
-					!print *, "Polymer rejected", counter
+					UpLim = highalpha * AverageDistance(counter,2)*AverageDistance(3,3)/(AverageDistance(counter,3)* AverageDistance(3,2))
+					LowLim = lowalpha * AverageDistance(counter,2)*AverageDistance(3,3)/(AverageDistance(counter,3)* AverageDistance(3,2))
+					if (PolWeight > UpLim) then
+						call random_number(R)
+						if ( R < 20d0/counter**0.8) then
+							!print *, AverageDistance(counter,3)
+							NewWeight = 0.5 * PolWeight
+							call AddBead(Polymer, NewWeight, (counter + 1), Ntheta, N, Ndim, beta, AverageDistance &
+							, RadiusGyration, PolWeight_vector)
+							call AddBead(Polymer, NewWeight, (counter + 1), Ntheta, N, Ndim, beta, AverageDistance &
+							, RadiusGyration, PolWeight_vector)
+						else 
+							call AddBead(Polymer, PolWeight, (counter + 1), Ntheta, N, Ndim, beta, AverageDistance &
+							, RadiusGyration, PolWeight_vector)
+						end if
+					else if (PolWeight < LowLim) then
+						CALL RANDOM_NUMBER(R)
+						if (R < 0.5) then
+							NewWeight = 2*PolWeight
+							call AddBead(Polymer, NewWeight, (counter + 1), Ntheta, N, Ndim, beta, &
+							 AverageDistance , RadiusGyration, PolWeight_vector)
+						end if
+					else	
+						call AddBead(Polymer, PolWeight, (counter + 1), Ntheta, N, Ndim, beta, AverageDistance &
+						, RadiusGyration, PolWeight_vector)
+					end if
 				end if
-			else
-				call AddBead(Polymer, PolWeight, AvWeight, PolWeight3, (counter + 1), Ntheta, N, Ndim, beta, AverageDistance, RadiusGyration, &
-				PolWeight_vector)
 			end if
 		end if
+
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!	Pruning & enriching the polymer		!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -124,8 +133,10 @@ else if (PERM == 0) then
 !!!!!!!!!!!!!!!!!!!!!!	No Pruning & enriching the Polymer	!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 		if (counter < N) then
-			call AddBead(Polymer, PolWeight, AvWeight, PolWeight3, (counter + 1), Ntheta, N, Ndim, beta, AverageDistance, RadiusGyration, &
-			PolWeight_vector)
+			if (PolWeight > 0 ) then
+				call AddBead(Polymer, PolWeight, (counter + 1), Ntheta, N, Ndim, beta, AverageDistance, RadiusGyration, &
+				PolWeight_vector)
+			end if
 		end if
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!	No Pruning & enriching the Polymer	!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -146,7 +157,7 @@ end if
 		integer, intent(in) :: counter, N, Ndim
 		real(8), intent(in), dimension(N,Ndim) :: Polymer
 		integer :: i
-		real(8), parameter :: e= 125d-3, s = 64d-2
+		real(8), parameter :: e= 0.25, s = 0.64
 		real(8), dimension(Ndim) :: NewSegment
 		real(8) :: energy, distance_squared
 
@@ -199,6 +210,8 @@ end if
 		CALL RANDOM_NUMBER(ys)
 		sum_weight_vector = 0d0
 		weight_vector = 0d0
+		Theta = 0d0
+		Phi = 0d0
 
 		RandomTheta = xs * 2 * pi
 		RandomPhi = ys * 2 * pi
@@ -209,6 +222,7 @@ end if
 				energy_vector(i) = CalcEnergy(Theta, Phi, Polymer, counter, N, Ndim)
 				weight_vector(i) = exp(-1 * energy_vector(i) * beta)
 				sum_weight_vector = sum_weight_vector + weight_vector(i)
+				!print *, energy_vector(i), weight_vector(i), sum_weight_vector, counter
 			end do
 		else if (Ndim == 3) then 
 			do j = 1,Ntheta
@@ -221,6 +235,7 @@ end if
 				end do
 			end do
 		end if 
+		!print *, sum_weight_vector
 		
 	end subroutine
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

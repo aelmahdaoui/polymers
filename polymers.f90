@@ -6,10 +6,9 @@ program polymers
 	implicit none
 
 	integer :: N, Ntheta, j, counter, Ndim, Ntests
-	real(8) :: Temperature, PolWeight, AvWeight, PolWeight3, beta
-	real(8), dimension(:, :), allocatable :: Polymer, Distance, AverageDistance, AverageRadiusGyration, &
-	RadiusGyration, TestVector, Distribution_vector
-
+	real(8) :: Temperature, PolWeight, beta
+	real(8), dimension(:, :), allocatable :: Polymer, AverageDistance, AverageRadiusGyration, &
+	RadiusGyration, TestVector, Distribution_vector, Weight_vector
 
 
 	real ::  beg_cpu_time, end_cpu_time
@@ -25,49 +24,51 @@ program polymers
 
 
 	allocate ( Polymer(N, Ndim) )
-	allocate ( Distance(N,3) )
 	allocate ( AverageDistance(N,3) )
 	allocate ( AverageRadiusGyration(N,2) )
 	allocate ( RadiusGyration(N,2) )
-	allocate ( TestVector(1, (N-2)) )
+	allocate ( TestVector(2, (N-2)) )
 	allocate ( Distribution_vector(Ntests,(N-2)) )
+	allocate ( Weight_vector(Ntests,(N-2)) )
 		
 	
 	AverageDistance = 0d0
 	AverageRadiusGyration = 0d0
 	beta = 1d0/Temperature
 	Distribution_vector = 0d0
+	Weight_vector = 0d0
+
+	call init_random_seed
 
 
 
 do j=1,Ntests
 	Polymer = 0d0
 	Polymer(2,1) = 1d0
-	Distance = 0d0
 	RadiusGyration = 0d0
 	counter = 3
 	PolWeight = 1d0
-	PolWeight3 = 1d0
-	AvWeight = 1d0
 	TestVector = 0d0
 
-
-	call AddBead(Polymer, PolWeight, AvWeight, PolWeight3, counter, Ntheta, N, Ndim,  beta, Distance, RadiusGyration, TestVector)
-	!print *, TestVector
+print *, "Cycle ", j
 	
 	if (mod(j,10) == 0) then
 		print *, "Cycle ", j
 	end if
 
-	AverageDistance(:,:) = AverageDistance(:,:) + Distance(:,:)
-	AverageRadiusGyration(:,:) = AverageRadiusGyration(:,:) + RadiusGyration(:,:)
-	Distribution_vector(j,:) = Distribution_vector(j,:) + TestVector(1,:)
+	call AddBead(Polymer, PolWeight, counter, Ntheta, N, Ndim,  beta, AverageDistance, RadiusGyration, TestVector)
+
+	!AverageRadiusGyration(:,:) = AverageRadiusGyration(:,:) + RadiusGyration(:,:)
+	!Distribution_vector(j,:) = Distribution_vector(j,:) + TestVector(1,:)
+	!Weight_vector(j,:) = Weight_vector(j,:) + TestVector(2,:)
 end do
 
 	call WriteAverageDistanceToFile(AverageDistance,N)
-	call WriteAverageRadiusGyrationToFile(AverageRadiusGyration,N)
-	call WriteTestVector(Distribution_vector, Ntests, (N-2))
-	print *, Ntests, N-2
+	!call WriteAverageRadiusGyrationToFile(AverageRadiusGyration,N)
+	!call WriteTestVector(Distribution_vector, Ntests, (N-2))
+	!call WriteTestVector2(Weight_vector, Ntests, (N-2))
+	!print *, Ntests, N-2
+	!call WritePolymer(Polymer,N)
 
 
 
