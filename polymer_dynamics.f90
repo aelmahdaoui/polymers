@@ -17,7 +17,7 @@ contains
 		real(8) :: weight, theta, phi, beta, RandomTheta, RandomPhi, R, LowLim, UpLim
 		real(8), parameter :: pi = 4*atan(1d0), highalpha = 2.0, lowalpha = 1.2
 		real(8), intent(inout), dimension(N,3) :: AverageDistance
-		real(8), intent(inout), dimension(N,2) :: RadiusGyration
+		real(8), intent(inout), dimension(N,3) :: RadiusGyration
 		real(8), intent(inout), dimension(2,(N-2)) :: PolWeight_vector
 
 
@@ -54,6 +54,9 @@ contains
 		
 
 		PolWeight = PolWeight*weight/(0.75*Ntheta)
+		if (PolWeight < 0) then
+			print *, "Error, possible overflow"
+		end if
 
 		
 		if (Ndim == 2) then
@@ -69,8 +72,9 @@ contains
 			AverageDistance(counter,3) = AverageDistance(counter,3) + 1										! Record number of polymers with this length
 		end if
 
-		!RadiusGyration(counter,1) = RadiusGyration(counter,1) + CalcRadiusGyration(Polymer,counter,Ndim) * PolWeight
-		!RadiusGyration(counter,2) = RadiusGyration(counter,2) + PolWeight
+		RadiusGyration(counter,1) = RadiusGyration(counter,1) + CalcRadiusGyration(Polymer,counter,Ndim) * PolWeight
+		RadiusGyration(counter,2) = AverageDistance(counter,2)
+		RadiusGyration(counter,3) = AverageDistance(counter,3)
 
 
 
@@ -97,7 +101,7 @@ if (PERM == 1) then
 					LowLim = lowalpha * AverageDistance(counter,2)*AverageDistance(3,3)/(AverageDistance(counter,3)* AverageDistance(3,2))
 					if (PolWeight > UpLim) then
 						call random_number(R)
-						if ( R < 20d0/counter**0.8) then
+						if ( R < 20d0/(counter**0.8)) then
 							!print *, AverageDistance(counter,3)
 							NewWeight = 0.5 * PolWeight
 							call AddBead(Polymer, NewWeight, (counter + 1), Ntheta, N, Ndim, beta, AverageDistance &
@@ -105,6 +109,7 @@ if (PERM == 1) then
 							call AddBead(Polymer, NewWeight, (counter + 1), Ntheta, N, Ndim, beta, AverageDistance &
 							, RadiusGyration, PolWeight_vector)
 						else 
+							!print *, "Doubling skipped", counter
 							call AddBead(Polymer, PolWeight, (counter + 1), Ntheta, N, Ndim, beta, AverageDistance &
 							, RadiusGyration, PolWeight_vector)
 						end if

@@ -25,8 +25,8 @@ program polymers
 
 	allocate ( Polymer(N, Ndim) )
 	allocate ( AverageDistance(N,3) )
-	allocate ( AverageRadiusGyration(N,2) )
-	allocate ( RadiusGyration(N,2) )
+	allocate ( AverageRadiusGyration(N,3) )
+	allocate ( RadiusGyration(N,3) )
 	allocate ( TestVector(2, (N-2)) )
 	allocate ( Distribution_vector(Ntests,(N-2)) )
 	allocate ( Weight_vector(Ntests,(N-2)) )
@@ -50,21 +50,20 @@ do j=1,Ntests
 	PolWeight = 1d0
 	TestVector = 0d0
 
-print *, "Cycle ", j
 	
-	if (mod(j,10) == 0) then
+	if (mod(j,25) == 0) then
 		print *, "Cycle ", j
 	end if
 
 	call AddBead(Polymer, PolWeight, counter, Ntheta, N, Ndim,  beta, AverageDistance, RadiusGyration, TestVector)
 
-	!AverageRadiusGyration(:,:) = AverageRadiusGyration(:,:) + RadiusGyration(:,:)
+	AverageRadiusGyration(:,:) = AverageRadiusGyration(:,:) + RadiusGyration(:,:)
 	!Distribution_vector(j,:) = Distribution_vector(j,:) + TestVector(1,:)
 	!Weight_vector(j,:) = Weight_vector(j,:) + TestVector(2,:)
 end do
 
 	call WriteAverageDistanceToFile(AverageDistance,N)
-	!call WriteAverageRadiusGyrationToFile(AverageRadiusGyration,N)
+	call WriteAverageRadiusGyrationToFile(AverageRadiusGyration,N)
 	!call WriteTestVector(Distribution_vector, Ntests, (N-2))
 	!call WriteTestVector2(Weight_vector, Ntests, (N-2))
 	!print *, Ntests, N-2

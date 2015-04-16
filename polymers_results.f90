@@ -45,7 +45,7 @@ contains
 
 	subroutine WriteAverageRadiusGyrationToFile(AverageRadiusGyration, N)
 	integer, intent(in) :: N
-	real(8), intent(in), dimension(N,2) :: AverageRadiusGyration
+	real(8), intent(in), dimension(N,3) :: AverageRadiusGyration
 	integer :: i
 
 	open (unit=4,file="radiusofgyration.dat",action="write")
@@ -54,7 +54,7 @@ contains
 		if (i < 3) then
 			write (4,"(I6, 4F35.5)")  i, 0d0	
 		else
-			write (4,"(I6, 4F35.5)")  i, AverageRadiusGyration(i,1)/AverageRadiusGyration(i,2)
+			write (4,"(I6, 4F35.5)")  i, AverageRadiusGyration(i,1)*1d3/AverageRadiusGyration(i,2)
 		end if
 	end do
 	
