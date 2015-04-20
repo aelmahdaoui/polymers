@@ -6,8 +6,8 @@ module polymers_init
 
 contains
 
-	subroutine ReadInputFile(N, Ndim, Ntheta, T, Ntests)
-	integer, intent(out) :: N, Ndim, Ntheta, Ntests
+	subroutine ReadInputFile(N, Ndim, Ntheta, T, Ntests, PERM)
+	integer, intent(out) :: N, Ndim, Ntheta, Ntests, PERM
 	real(8), intent(out) :: T	
 
 	open(1, file='PolymerInput.txt', status='old', action='read')            ! opens the first file
@@ -16,6 +16,7 @@ contains
 	read(1,*), T 
 	read(1,*), Ndim
 	read(1,*), Ntests
+	read(1,*), PERM
 
 	close(1)
 

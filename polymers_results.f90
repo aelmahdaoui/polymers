@@ -54,7 +54,8 @@ contains
 		if (i < 3) then
 			write (4,"(I6, 4F35.5)")  i, 0d0	
 		else
-			write (4,"(I6, 4F35.5)")  i, AverageRadiusGyration(i,1)*1d3/AverageRadiusGyration(i,2)
+			write (4,"(I6, 4F35.5)")  i, AverageRadiusGyration(i,1)*6/AverageRadiusGyration(i,2), &
+			 AverageRadiusGyration(i,2), AverageRadiusGyration(i,3) 
 		end if
 	end do
 	

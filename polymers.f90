@@ -5,10 +5,10 @@ program polymers
 
 	implicit none
 
-	integer :: N, Ntheta, j, counter, Ndim, Ntests
+	integer :: N, Ntheta, j, counter, Ndim, Ntests, PERM
 	real(8) :: Temperature, PolWeight, beta
 	real(8), dimension(:, :), allocatable :: Polymer, AverageDistance, AverageRadiusGyration, &
-	RadiusGyration, TestVector, Distribution_vector, Weight_vector
+	RadiusGyration
 
 
 	real ::  beg_cpu_time, end_cpu_time
@@ -20,23 +20,18 @@ program polymers
 
 
 
-	call ReadInputFile(N, Ndim, Ntheta, Temperature, Ntests)
+	call ReadInputFile(N, Ndim, Ntheta, Temperature, Ntests, PERM)
 
 
 	allocate ( Polymer(N, Ndim) )
 	allocate ( AverageDistance(N,3) )
 	allocate ( AverageRadiusGyration(N,3) )
 	allocate ( RadiusGyration(N,3) )
-	allocate ( TestVector(2, (N-2)) )
-	allocate ( Distribution_vector(Ntests,(N-2)) )
-	allocate ( Weight_vector(Ntests,(N-2)) )
 		
 	
 	AverageDistance = 0d0
 	AverageRadiusGyration = 0d0
 	beta = 1d0/Temperature
-	Distribution_vector = 0d0
-	Weight_vector = 0d0
 
 	call init_random_seed
 
@@ -48,26 +43,20 @@ do j=1,Ntests
 	RadiusGyration = 0d0
 	counter = 3
 	PolWeight = 1d0
-	TestVector = 0d0
 
 	
 	if (mod(j,25) == 0) then
 		print *, "Cycle ", j
 	end if
 
-	call AddBead(Polymer, PolWeight, counter, Ntheta, N, Ndim,  beta, AverageDistance, RadiusGyration, TestVector)
+	call AddBead(Polymer, PolWeight, counter, Ntheta, N, Ndim,  beta, AverageDistance, RadiusGyration, PERM)
 
 	AverageRadiusGyration(:,:) = AverageRadiusGyration(:,:) + RadiusGyration(:,:)
-	!Distribution_vector(j,:) = Distribution_vector(j,:) + TestVector(1,:)
-	!Weight_vector(j,:) = Weight_vector(j,:) + TestVector(2,:)
+	
 end do
 
 	call WriteAverageDistanceToFile(AverageDistance,N)
 	call WriteAverageRadiusGyrationToFile(AverageRadiusGyration,N)
-	!call WriteTestVector(Distribution_vector, Ntests, (N-2))
-	!call WriteTestVector2(Weight_vector, Ntests, (N-2))
-	!print *, Ntests, N-2
-	!call WritePolymer(Polymer,N)
 
 
 
