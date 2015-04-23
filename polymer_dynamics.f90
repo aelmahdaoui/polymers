@@ -6,15 +6,15 @@ module polymer_dynamics
 
 contains
 
-	subroutine AddBead(Polymer, PolWeight, counter, Ntheta, N, Ndim, beta, AverageDistance, RadiusGyration, PERM)
-		integer, intent(in) :: counter, N, Ndim, Ntheta, PERM
+	subroutine AddBead(Polymer, PolWeight, counter, Ntheta, N, Ndim, beta, AverageDistance, RadiusGyration, PERM, Ntests, test)
+		integer, intent(in) :: counter, N, Ndim, Ntheta, PERM, Ntests, test
 		integer :: THETA_NUMBER
 		real(8), intent(inout) :: PolWeight
 		real(8) :: NewWeight
 		real(8), intent(inout), dimension(N,Ndim) :: Polymer
 		real(8), dimension(Ntheta**(Ndim-1)) :: weight_vector
 		real(8) :: weight, theta, phi, beta, RandomTheta, RandomPhi, R, LowLim, UpLim
-		real(8), parameter :: pi = 4*atan(1d0), highalpha = 2.0, lowalpha = 1.2
+		real(8), parameter :: pi = 4*atan(1d0), highalpha = 2.2, lowalpha = 1.1
 		real(8), intent(inout), dimension(N,3) :: AverageDistance
 		real(8), intent(inout), dimension(N,3) :: RadiusGyration
 
@@ -59,7 +59,7 @@ contains
 		
 		if (Ndim == 2) then
 			AverageDistance(counter,1) = AverageDistance(counter,1) + (Polymer(counter,1)**2 + Polymer(counter,2)**2) * PolWeight			! Record weighted end-to-end distance
-			AverageDistance(counter,2) = AverageDistance(counter,2) + PolWeight									! Record the weights for normalization
+			AverageDistance(counter,2) = AverageDistance(counter,2) + PolWeight									! Record the sum of the weights for normalization
 			AverageDistance(counter,3) = AverageDistance(counter,3) + 1										! Record number of polymers with this length
 		else if (Ndim == 3) then
 			AverageDistance(counter,1) = AverageDistance(counter,1) + (Polymer(counter,1)**2 &
@@ -68,10 +68,21 @@ contains
 			AverageDistance(counter,3) = AverageDistance(counter,3) + 1										! Record number of polymers with this length
 		end if
 
-		RadiusGyration(counter,1) = RadiusGyration(counter,1) + CalcRadiusGyrationSquared(Polymer,counter,Ndim) * PolWeight
-		RadiusGyration(counter,2) = RadiusGyration(counter,2) + PolWeight
-		RadiusGyration(counter,3) = RadiusGyration(counter,3) + 1
 
+		!DistancesSquared = (DistancesSquared * (counter-1) + Polymer(counter,1)**2 + Polymer(counter,2)**2)/counter
+		!CenterOfMass = (CenterOfMass*(counter-1) + sqrt(Polymer(counter,1)**2 + Polymer(counter,2)**2))/counter
+
+		!UpLim = highalpha * AverageDistance(counter,2)*AverageDistance(3,3)/(AverageDistance(counter,3)* AverageDistance(3,2))
+		!if (PolWeight > UpLim ) then
+			RadiusGyration(counter,1) = RadiusGyration(counter,1) + CalcRadiusGyrationSquared(Polymer,counter, N, Ndim) * PolWeight
+			RadiusGyration(counter,2) = RadiusGyration(counter,2) + PolWeight
+			RadiusGyration(counter,3) = RadiusGyration(counter,3) + 1
+		!end if
+		
+		!if ( test > 1000) then
+		!	print *, RadiusGyration(counter,1)/RadiusGyration(counter,2), counter, test
+		!	print *, CalcRadiusGyrationSquared(Polymer,counter,Ndim), PolWeight
+		!end if
 
 
 
@@ -85,31 +96,31 @@ if (PERM == 1) then
 		
 
 		if (counter == 3) then
-			call AddBead(Polymer, PolWeight, (counter + 1), Ntheta, N, Ndim, beta, AverageDistance, RadiusGyration, PERM)
+			call AddBead(Polymer, PolWeight, (counter + 1), Ntheta, N, Ndim, beta, AverageDistance, RadiusGyration, PERM, Ntests, test)
 		else if (counter < N) then
 			if (PolWeight > 0 ) then
 				if ( AverageDistance(counter,3) < 1000) then
-					call AddBead(Polymer, PolWeight, (counter + 1), Ntheta, N, Ndim, beta, AverageDistance, RadiusGyration, PERM)
+					call AddBead(Polymer, PolWeight, (counter + 1), Ntheta, N, Ndim, beta, AverageDistance, RadiusGyration, PERM, Ntests, test)
 				else
 					UpLim = highalpha * AverageDistance(counter,2)*AverageDistance(3,3)/(AverageDistance(counter,3)* AverageDistance(3,2))
 					LowLim = lowalpha * AverageDistance(counter,2)*AverageDistance(3,3)/(AverageDistance(counter,3)* AverageDistance(3,2))
 					if (PolWeight > UpLim) then
 						call random_number(R)
-						if ( R < 20d0/(counter**0.8)) then
+						if ( R < 40d0/counter**0.8 * test/Ntests) then
 							NewWeight = 0.5 * PolWeight
-							call AddBead(Polymer, NewWeight, (counter + 1), Ntheta, N, Ndim, beta, AverageDistance, RadiusGyration, PERM)
-							call AddBead(Polymer, NewWeight, (counter + 1), Ntheta, N, Ndim, beta, AverageDistance, RadiusGyration, PERM)
+							call AddBead(Polymer, NewWeight, (counter + 1), Ntheta, N, Ndim, beta, AverageDistance, RadiusGyration, PERM, Ntests, test)
+							call AddBead(Polymer, NewWeight, (counter + 1), Ntheta, N, Ndim, beta, AverageDistance, RadiusGyration, PERM, Ntests, test)
 						else 
-							call AddBead(Polymer, PolWeight, (counter + 1), Ntheta, N, Ndim, beta, AverageDistance, RadiusGyration, PERM)
+							call AddBead(Polymer, PolWeight, (counter + 1), Ntheta, N, Ndim, beta, AverageDistance, RadiusGyration, PERM, Ntests, test)
 						end if
 					else if (PolWeight < LowLim) then
 						CALL RANDOM_NUMBER(R)
 						if (R < 0.5) then
 							NewWeight = 2*PolWeight
-							call AddBead(Polymer, NewWeight, (counter + 1), Ntheta, N, Ndim, beta, AverageDistance, RadiusGyration, PERM)
+							call AddBead(Polymer, NewWeight, (counter + 1), Ntheta, N, Ndim, beta, AverageDistance, RadiusGyration, PERM, Ntests, test)
 						end if
 					else	
-						call AddBead(Polymer, PolWeight, (counter + 1), Ntheta, N, Ndim, beta, AverageDistance, RadiusGyration, PERM)
+						call AddBead(Polymer, PolWeight, (counter + 1), Ntheta, N, Ndim, beta, AverageDistance, RadiusGyration, PERM, Ntests, test)
 					end if
 				end if
 			end if
@@ -132,7 +143,7 @@ else if (PERM == 0) then
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 		if (counter < N) then
 			if (PolWeight > 0 ) then
-				call AddBead(Polymer, PolWeight, (counter + 1), Ntheta, N, Ndim, beta, AverageDistance, RadiusGyration, PERM)
+				call AddBead(Polymer, PolWeight, (counter + 1), Ntheta, N, Ndim, beta, AverageDistance, RadiusGyration, PERM, Ntests, test)
 			end if
 		end if
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -280,8 +291,8 @@ end if
 		
 	end subroutine
 
-	function CalcRadiusGyrationSquared(Polymer,N,Ndim) result(radius)
-		integer, intent(in) :: N, Ndim
+	function CalcRadiusGyrationSquared(Polymer,counter, N, Ndim) result(radius)
+		integer, intent(in) :: counter, N, Ndim
 		integer :: i, j
 		real(8), dimension(Ndim) :: DifferenceSquared, center_mass
 		real(8) :: radius
@@ -289,40 +300,40 @@ end if
 		
 		DifferenceSquared = 0d0
 		radius = 0d0
-		center_mass = CalcCenterMass(Polymer,N,Ndim)
+		center_mass = CalcCenterMass(Polymer, counter, N,Ndim)
 
-		do i=1,N
+		do i=1,counter
 			do j=1,Ndim
-				DifferenceSquared(j) = DifferenceSquared(j) + Polymer(i,j)**2
+				DifferenceSquared(j) = DifferenceSquared(j) + (Polymer(i,j)- center_mass(j))**2
 			end do
 		end do
 
 		do j=1,Ndim
-			radius = radius + (DifferenceSquared(j) - center_mass(j)**2)**2
+			radius = radius + DifferenceSquared(j)/counter ! - center_mass(j)**2
 		end do
 		
-		radius = sqrt(radius)
-		radius = radius/N
+		!radius = sqrt(radius)
+		!radius = radius/N
 		
 		
 	end function
 
-	function CalcCenterMass (Polymer,N,Ndim) result(CenterMass)
-		integer, intent(in) :: N, Ndim
+	function CalcCenterMass (Polymer,counter, N,Ndim) result(CenterMass)
+		integer, intent(in) :: N, Ndim, counter
 		integer :: i, j
 		real(8), dimension(Ndim) :: CenterMass
 		real(8), intent(in), dimension(N,Ndim) :: Polymer
 
 		CenterMass = 0d0
 		
-		do i=1,N
+		do i=1,counter
 			do j=1,Ndim
 				CenterMass(j) = CenterMass(j) + Polymer(i,j)
 			end do
 		end do
 
 		do j=1,Ndim
-			CenterMass(j) = CenterMass(j)/N
+			CenterMass(j) = CenterMass(j)/counter
 		end do
 
 	end function
