@@ -2,7 +2,7 @@ module polymers_init
 	implicit none
 	private
 	
-	public  ReadInputFile!
+	public  ReadInputFile
 
 contains
 

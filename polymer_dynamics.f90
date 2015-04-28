@@ -49,40 +49,22 @@ contains
 
 		call UpdatePolymer(Polymer, N, Ndim, counter, theta, phi)
 
-		
-
-		PolWeight = PolWeight*weight/(0.75*Ntheta)
-		if (PolWeight < 0) then
-			print *, "Error, possible overflow"
+		if (Ndim == 2) then 
+			PolWeight = PolWeight * weight/(0.75*Ntheta)
+		else if (Ndim == 3 ) then
+			PolWeight = PolWeight*weight/(4*Ntheta)
 		end if
 
 		
-		if (Ndim == 2) then
-			AverageDistance(counter,1) = AverageDistance(counter,1) + (Polymer(counter,1)**2 + Polymer(counter,2)**2) * PolWeight			! Record weighted end-to-end distance
-			AverageDistance(counter,2) = AverageDistance(counter,2) + PolWeight									! Record the sum of the weights for normalization
-			AverageDistance(counter,3) = AverageDistance(counter,3) + 1										! Record number of polymers with this length
-		else if (Ndim == 3) then
-			AverageDistance(counter,1) = AverageDistance(counter,1) + (Polymer(counter,1)**2 &
-			+ Polymer(counter,2)**2 + Polymer(counter,3)**2) * PolWeight									! Record weighted end-to-end distance
-			AverageDistance(counter,2) = AverageDistance(counter,2) + PolWeight								! Record the weights for normalization
-			AverageDistance(counter,3) = AverageDistance(counter,3) + 1										! Record number of polymers with this length
+		AverageDistance(counter,1) = AverageDistance(counter,1) + (Polymer(counter,1)**2 + Polymer(counter,2)**2) * PolWeight			! Record weighted end-to-end distance
+		AverageDistance(counter,2) = AverageDistance(counter,2) + PolWeight									! Record the sum of the weights for normalization
+		AverageDistance(counter,3) = AverageDistance(counter,3) + 1										! Record number of polymers with this length
+		if (Ndim == 3) then
+			AverageDistance(counter,1) = AverageDistance(counter,1) + Polymer(counter,3)**2 * PolWeight					! Record weighted end-to-end distance
 		end if
-
-
-		!DistancesSquared = (DistancesSquared * (counter-1) + Polymer(counter,1)**2 + Polymer(counter,2)**2)/counter
-		!CenterOfMass = (CenterOfMass*(counter-1) + sqrt(Polymer(counter,1)**2 + Polymer(counter,2)**2))/counter
-
-		!UpLim = highalpha * AverageDistance(counter,2)*AverageDistance(3,3)/(AverageDistance(counter,3)* AverageDistance(3,2))
-		!if (PolWeight > UpLim ) then
-			RadiusGyration(counter,1) = RadiusGyration(counter,1) + CalcRadiusGyrationSquared(Polymer,counter, N, Ndim) * PolWeight
-			RadiusGyration(counter,2) = RadiusGyration(counter,2) + PolWeight
-			RadiusGyration(counter,3) = RadiusGyration(counter,3) + 1
-		!end if
-		
-		!if ( test > 1000) then
-		!	print *, RadiusGyration(counter,1)/RadiusGyration(counter,2), counter, test
-		!	print *, CalcRadiusGyrationSquared(Polymer,counter,Ndim), PolWeight
-		!end if
+		RadiusGyration(counter,1) = RadiusGyration(counter,1) + CalcRadiusGyrationSquared(Polymer,counter, N, Ndim) * PolWeight
+		RadiusGyration(counter,2) = AverageDistance(counter,2)
+		RadiusGyration(counter,3) = AverageDistance(counter,3)
 
 
 
@@ -106,7 +88,20 @@ if (PERM == 1) then
 					LowLim = lowalpha * AverageDistance(counter,2)*AverageDistance(3,3)/(AverageDistance(counter,3)* AverageDistance(3,2))
 					if (PolWeight > UpLim) then
 						call random_number(R)
-						if ( R < 40d0/counter**0.8 * test/Ntests) then
+						if ( R < 50d0/counter**0.7 * test/Ntests ) then
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+!The random number is used to control the population and prevent unlimited doubling or fast attrition. The last factor is to ensure that polymers aren't strongly correlated and doubling takes place across all simulations, the factor before that is so that most doubling happens early on in the chain.
+!Good values found are:
+!For T = 1.2, Ntheta = 9, 2D, N= 250,  70d0/counter**0.8 * test/Ntests
+!For T = 1.5, Ntheta = 9, 2D, N= 250,  40d0/counter**0.8 * test/Ntests
+!For T = 2.5, Ntheta = 5, 3D, N= 250,  50d0/counter**0.7 * test/Ntests
+!For T = +2, Ntheta = 10, 2D, N= 250,  no number is necessary, unlimited doubling is ok
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
 							NewWeight = 0.5 * PolWeight
 							call AddBead(Polymer, NewWeight, (counter + 1), Ntheta, N, Ndim, beta, AverageDistance, RadiusGyration, PERM, Ntests, test)
 							call AddBead(Polymer, NewWeight, (counter + 1), Ntheta, N, Ndim, beta, AverageDistance, RadiusGyration, PERM, Ntests, test)
@@ -243,7 +238,6 @@ end if
 				end do
 			end do
 		end if 
-		!print *, sum_weight_vector
 		
 	end subroutine
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -309,14 +303,11 @@ end if
 		end do
 
 		do j=1,Ndim
-			radius = radius + DifferenceSquared(j)/counter ! - center_mass(j)**2
+			radius = radius + DifferenceSquared(j)/counter 
 		end do
-		
-		!radius = sqrt(radius)
-		!radius = radius/N
-		
-		
 	end function
+
+
 
 	function CalcCenterMass (Polymer,counter, N,Ndim) result(CenterMass)
 		integer, intent(in) :: N, Ndim, counter

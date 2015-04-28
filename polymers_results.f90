@@ -29,8 +29,6 @@ contains
 	open (unit=3,file="logdistances.dat",action="write")
 
 	do i = 1,(N-1)
-		!if (i < 2) then
-		!	write (3,"(4F35.5)")  log10(i*1d0), AverageDistance(i,1)
 		if (i < 2) then
 			write (3,"(4F35.5)")  log10(i*1d0), log10(1d0) 
 		else if ( i > 1) then

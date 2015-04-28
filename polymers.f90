@@ -6,10 +6,9 @@ program polymers
 	implicit none
 
 	integer :: N, Ntheta, j, counter, Ndim, Ntests, PERM
-	real(8) :: Temperature, PolWeight, beta, DistancesSquared, CenterOfMass
+	real(8) :: Temperature, PolWeight, beta
 	real(8), dimension(:, :), allocatable :: Polymer, AverageDistance, AverageRadiusGyration, &
 	RadiusGyration
-	!real(8), dimension(:), allocatable :: vector
 
 	real ::  beg_cpu_time, end_cpu_time
 	integer :: clck_counts_beg, clck_counts_end, clck_rate
@@ -27,24 +26,12 @@ program polymers
 	allocate ( AverageDistance(N,3) )
 	allocate ( AverageRadiusGyration(N,3) )
 	allocate ( RadiusGyration(N,3) )
-	!allocate ( vector(Ndim) )
 		
 	
 	AverageDistance = 0d0
 	AverageRadiusGyration = 0d0
 	beta = 1d0/Temperature
 
-	CenterOfMass=0d0
-	DistancesSquared = 0d0
-
-	!vector = CalcCenterMass(Polymer,2,Ndim)
-
-
-	!do i=1,Ndim
-	!	CenterOfMass = CenterOfMass + vector(i)
-	!end do
-
-	!DistancesSquared = CalcRadiusGyrationSquared(Polymer,2,Ndim) + CenterOfMass**2
 
 	call init_random_seed
 
