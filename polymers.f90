@@ -1,6 +1,6 @@
 program polymers
 	use polymers_init
-	use polymer_dynamics
+	use polymer_generation
 	use polymers_results	
 
 	implicit none

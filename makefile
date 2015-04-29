@@ -15,7 +15,7 @@ LINK = $(FC) $(LDFLAGS)
 
 OBJS = 
 OBJS += polymers_init.o
-OBJS += polymer_dynamics.o
+OBJS += polymer_generation.o
 OBJS += polymers_results.o
 OBJS += polymers.o
 

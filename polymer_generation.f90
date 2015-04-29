@@ -1,4 +1,4 @@
-module polymer_dynamics
+module polymer_generation
 	implicit none
 	private
 	
